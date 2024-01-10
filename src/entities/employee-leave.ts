@@ -1,10 +1,12 @@
-import { Entity, Enum, ManyToOne, OneToOne, Property, Unique } from "@mikro-orm/core";
+import { Collection, Entity, Enum, ManyToOne, OneToMany, Property } from "@mikro-orm/core";
 import { CustomBaseEntity } from "./custom-base-entity";
 import { Employee } from "./employee";
+import { EmployeeLeaveItem } from "./employee-leave-item";
 
 export enum LeaveType {
   ABSENT = 'absent',
   DAYOFF = 'dayoff',
+  VACATION = 'vacation',
 }
 
 @Entity({ tableName: 'employee_leaves' })
@@ -26,4 +28,7 @@ export class EmployeeLeave extends CustomBaseEntity {
 
   @Property()
   numDays!: number;
+
+  @OneToMany('EmployeeLeaveItem', 'leave')
+  items = new Collection<EmployeeLeaveItem>(this);
 }

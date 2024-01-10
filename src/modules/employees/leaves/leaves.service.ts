@@ -4,6 +4,8 @@ import { Employee } from '../../../entities/employee';
 import { EmployeeLeave } from '../../../entities/employee-leave';
 import dayjs from 'dayjs'
 import customParseFormat from 'dayjs/plugin/customParseFormat';
+import { getDaysBetween } from '../../../helpers/get-days-between';
+import { EmployeeLeaveItem } from '../../../entities/employee-leave-item';
 dayjs.extend(customParseFormat);
 
 export const LeavesService = {
@@ -11,11 +13,11 @@ export const LeavesService = {
     const orm: MikroORM = req.app.get('orm');
 
     try {
-      const users = await orm.em.findAll(EmployeeLeave, {
+      const leaves = await orm.em.findAll(EmployeeLeave, {
         fields: ['id', 'startDate', 'endDate', 'numDays', 'type', 'createdAt', 'updatedAt'],
       });
 
-      res.json(users);
+      res.json(leaves);
     } catch(e: any) {
       console.log(e);
       res.status(500).send({ message: e.message });
@@ -36,8 +38,9 @@ export const LeavesService = {
           employee: employeeId
         },
         {
-          fields: ['id', 'startDate', 'endDate', 'numDays', 'type', 'createdAt', 'updatedAt'],
-        }
+          populate: ['items']
+        },
+
       );
 
       if (!leave) {
@@ -57,7 +60,7 @@ export const LeavesService = {
 
     const employeeId = Number(req.params.employeeId);
 
-    const { startDate, endDate, type } = req.body;
+    const { startDate, endDate, type, reason, items } = req.body;
 
     const employee = orm.em.getReference(Employee, employeeId);
 
@@ -65,14 +68,39 @@ export const LeavesService = {
       return res.status(404).json({ 'message': 'Employee not found.'})
     }
 
+    const qb = orm.em.createQueryBuilder(EmployeeLeave, 'el');
+    qb.select(['el.*'])
+    .where('? <= el.end_date AND ? >= el.start_date', [startDate, endDate]);
+
+    const count = await qb.getCount();
+
+    if (count > 0) {
+      return res.status(422).json({ 'message': 'Start date or End date overlaps with existing records'})
+    }
+
     try {
       const leave = new EmployeeLeave();
 
+      leave.employee = employee;
       leave.startDate = startDate;
       leave.endDate = endDate;
       leave.type = type;
-      leave.employee = employee;
-      leave.numDays = 2;
+      leave.reason = reason;
+
+      const startDateObj = dayjs(startDate);
+      const endDateObj = dayjs(endDate);
+
+      leave.numDays = endDateObj.diff(startDateObj, 'days') + 1;
+
+      const leaveItems = items.map((item: any) => {
+        const leaveItem = new EmployeeLeaveItem();
+        leaveItem.date = item.date;
+        leaveItem.type = item.type;
+        leaveItem.halfDayType = item?.halfDayType || null;
+        return leaveItem;
+      })
+
+      leave.items = leaveItems;
 
       await orm.em.persist(leave).flush();
 
@@ -88,7 +116,7 @@ export const LeavesService = {
     const employeeId = Number(req.params.employeeId);
     const leaveId = Number(req.params.leaveId);
 
-    const { startDate, endDate, type } = req.body;
+    const { startDate, endDate, type, reason, items } = req.body;
 
     const leave = await orm.em.findOne(
       EmployeeLeave,
@@ -96,9 +124,6 @@ export const LeavesService = {
         id: leaveId,
         employee: employeeId
       },
-      {
-        fields: ['id', 'startDate', 'endDate', 'numDays', 'type', 'createdAt', 'updatedAt'],
-      }
     );
 
     if (!leave) {
@@ -109,6 +134,12 @@ export const LeavesService = {
       leave.startDate = startDate;
       leave.endDate = endDate;
       leave.type = type;
+      leave.reason = reason;
+      leave.items = items;
+      const startDateObj = dayjs(startDate);
+      const endDateObj = dayjs(endDate);
+
+      leave.numDays = endDateObj.diff(startDateObj, 'days') + 1;
 
       await orm.em.flush();
 
