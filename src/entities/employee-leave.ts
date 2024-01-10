@@ -18,9 +18,12 @@ export class EmployeeLeave extends CustomBaseEntity {
   @Property({ type: "date" })
   endDate!: Date;
 
-  @Property()
-  numDays!: number;
-
   @Enum(() => LeaveType)
   type!: LeaveType;
+
+  @Property({ type: 'text'})
+  reason!: string;
+
+  @Property()
+  numDays!: number;
 }
