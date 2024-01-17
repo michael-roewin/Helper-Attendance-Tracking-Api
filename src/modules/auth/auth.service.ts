@@ -1,31 +1,34 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jsonwebtoken, { Secret } from 'jsonwebtoken';
+import { MikroORM } from '@mikro-orm/postgresql';
+import { User } from '../../entities/user';
 
 export const AuthService = {
   login: async (req: Request, res: Response) => {
-    const pgPool = req.app.get('pgPool');
-
-    const data = [req.body?.username];
+    const orm: MikroORM = req.app.get('orm');
 
     try {
-      const result = await pgPool.query('SELECT id, first_name, last_name, username, password, is_employee, active FROM "hta".users WHERE username = $1', data)
+      const user = await orm.em.findOne(User, {
+        username: req.body?.username
+      });
 
-      if (result.rows?.length) {
-        const user = result.rows[0];
-        const match = await bcrypt.compare(req.body?.password, user.password);
+      if (!user) {
+        return res.status(404).json({ message: 'Incorrect username/password'});
+      }
 
-        const secret = process.env.SECRET_KEY as Secret;
+      const match = await bcrypt.compare(req.body?.password, user.password);
 
-        if (match) {
-          const token = jsonwebtoken.sign({ userId: user.id }, secret, {
-            expiresIn: '1h',
-          });
+      const secret = process.env.SECRET_KEY as Secret;
 
-          res.status(200).json({ token });
-        }
-      } else {
-        res.status(401).json({ message: "Incorrect username/password"});
+      if (match) {
+        const token = jsonwebtoken.sign({ userId: user.id }, secret, {
+          expiresIn: '1h',
+        });
+
+        delete (user as any).password;
+
+        res.status(200).json({ user, token });
       }
     } catch(e: any) {
       res.status(500).send({ message: e.message });
