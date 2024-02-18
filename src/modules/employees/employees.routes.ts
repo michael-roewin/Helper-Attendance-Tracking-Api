@@ -7,6 +7,7 @@ const employeeRouter = express.Router();
 
 employeeRouter.get("/", EmployeesController.getEmployeeList);
 employeeRouter.get("/:employeeId", EmployeesController.getEmployee);
+employeeRouter.get("/:employeeId/salary-report", EmployeesController.getEmployeeSalaryReport);
 
 employeeRouter.post("/",
   body('firstName').trim().notEmpty().withMessage('First name is required'),

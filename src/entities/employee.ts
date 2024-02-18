@@ -1,4 +1,4 @@
-import { Collection, Entity, OneToMany, OneToOne, Property, Unique } from "@mikro-orm/core";
+import { Cascade, Collection, Entity, OneToMany, OneToOne, Property, Unique } from "@mikro-orm/core";
 import { CustomBaseEntity } from "./custom-base-entity";
 import { User } from "./user";
 import { EmployeeLeave } from "./employee-leave";
@@ -9,11 +9,11 @@ export class Employee extends CustomBaseEntity {
   user!: User;
 
   @Property({ columnType: "numeric(9,2)" })
-  salary!: number;
+  salary!: string;
 
   @Property()
   dayOffPerMonth!: number;
 
-  @OneToMany('EmployeeLeave', 'employee')
+  @OneToMany('EmployeeLeave', 'employee', { orphanRemoval: true, cascade: [Cascade.ALL] })
   leaves = new Collection<EmployeeLeave>(this);
 }

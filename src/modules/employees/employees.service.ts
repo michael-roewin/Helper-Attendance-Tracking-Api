@@ -4,6 +4,7 @@ const saltRounds = 10;
 import { FilterQuery, MikroORM } from '@mikro-orm/postgresql';
 import { User } from '../../entities/user';
 import { Employee } from '../../entities/employee';
+import { LeaveType } from '../../entities/employee-leave';
 
 export const EmployeesService = {
   getEmployeeList: async (req: Request, res: Response) => {
@@ -36,6 +37,44 @@ export const EmployeesService = {
       }
 
       res.json(user);
+      return;
+    } catch(e: any) {
+      console.log(e);
+      return res.status(500).send({ message: e.message });
+    }
+  },
+
+  getEmployeeSalaryReport: async (req: Request, res: Response) => {
+    const orm: MikroORM = req.app.get('orm');
+
+    const employeeId = req.params.employeeId as FilterQuery<Employee>;
+
+    try {
+      const employee = await orm.em.findOne(Employee, employeeId, {
+        fields: ['id', 'salary', 'leaves.id', 'leaves.type', 'leaves.numDays' ],
+        populate: ['leaves'],
+        populateWhere: { leaves: { type: LeaveType.ABSENT } },
+      });
+
+      if (!employee) {
+        return res.status(404).json({ message: 'Employee not found'});
+      }
+
+      const numAbsences = employee.leaves.reduce((accum, leave) => {
+        const numAbsence = accum + parseFloat(leave.numDays);
+        return numAbsence;
+      }, 0);
+
+      const salaryPerDay = parseFloat(employee.salary) / 28;
+
+      const expectedSalary = (28 - numAbsences) * salaryPerDay;
+
+      res.json({
+        salary: employee.salary,
+        numAbsences,
+        salaryPerDay: salaryPerDay.toFixed(2),
+        expectedSalary: expectedSalary.toFixed(2)
+      });
       return;
     } catch(e: any) {
       console.log(e);

@@ -1,4 +1,4 @@
-import { Collection, Entity, Enum, ManyToOne, OneToMany, Property } from "@mikro-orm/core";
+import { Cascade, Collection, Entity, Enum, ManyToOne, OneToMany, Property } from "@mikro-orm/core";
 import { CustomBaseEntity } from "./custom-base-entity";
 import { Employee } from "./employee";
 import { EmployeeLeaveItem } from "./employee-leave-item";
@@ -26,9 +26,9 @@ export class EmployeeLeave extends CustomBaseEntity {
   @Property({ type: 'text'})
   reason!: string;
 
-  @Property()
-  numDays!: number;
+  @Property({ columnType: "numeric(9,2)" })
+  numDays!: string;
 
-  @OneToMany('EmployeeLeaveItem', 'leave')
+  @OneToMany('EmployeeLeaveItem', 'leave',{ orphanRemoval: true, cascade: [Cascade.ALL] })
   items = new Collection<EmployeeLeaveItem>(this);
 }

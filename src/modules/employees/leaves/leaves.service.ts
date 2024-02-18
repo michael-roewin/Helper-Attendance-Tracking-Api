@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
 import { FilterValue, MikroORM } from '@mikro-orm/postgresql';
 import { Employee } from '../../../entities/employee';
-import { EmployeeLeave } from '../../../entities/employee-leave';
+import { EmployeeLeave, LeaveType } from '../../../entities/employee-leave';
 import dayjs from 'dayjs'
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import { getDaysBetween } from '../../../helpers/get-days-between';
-import { EmployeeLeaveItem } from '../../../entities/employee-leave-item';
+import { EmployeeLeaveItem, LeaveItemType } from '../../../entities/employee-leave-item';
+import { wrap } from '@mikro-orm/core';
 dayjs.extend(customParseFormat);
 
 export const LeavesService = {
@@ -14,7 +15,15 @@ export const LeavesService = {
 
     try {
       const leaves = await orm.em.findAll(EmployeeLeave, {
-        fields: ['id', 'startDate', 'endDate', 'numDays', 'type', 'createdAt', 'updatedAt'],
+        fields: ['id', 'startDate', 'endDate', 'numDays', 'type', 'reason', 'createdAt', 'updatedAt'],
+        where: {
+          type: req.query.type as LeaveType
+        },
+        orderBy: [
+          {
+            startDate: 'DESC'
+          }
+        ]
       });
 
       res.json(leaves);
@@ -87,11 +96,6 @@ export const LeavesService = {
       leave.type = type;
       leave.reason = reason;
 
-      const startDateObj = dayjs(startDate);
-      const endDateObj = dayjs(endDate);
-
-      leave.numDays = endDateObj.diff(startDateObj, 'days') + 1;
-
       const leaveItems = items.map((item: any) => {
         const leaveItem = new EmployeeLeaveItem();
         leaveItem.date = item.date;
@@ -101,6 +105,10 @@ export const LeavesService = {
       })
 
       leave.items = leaveItems;
+
+      leave.numDays = leaveItems.reduce((accum: number, field: EmployeeLeaveItem) => {
+        return accum + ((field.type === LeaveItemType.HALF_DAY) ? 0.5 : 1);
+      }, 0),
 
       await orm.em.persist(leave).flush();
 
@@ -124,6 +132,9 @@ export const LeavesService = {
         id: leaveId,
         employee: employeeId
       },
+      {
+        populate: ['items']
+      },
     );
 
     if (!leave) {
@@ -131,15 +142,16 @@ export const LeavesService = {
     }
 
     try {
-      leave.startDate = startDate;
-      leave.endDate = endDate;
-      leave.type = type;
-      leave.reason = reason;
-      leave.items = items;
-      const startDateObj = dayjs(startDate);
-      const endDateObj = dayjs(endDate);
-
-      leave.numDays = endDateObj.diff(startDateObj, 'days') + 1;
+      wrap(leave).assign({
+        startDate,
+        endDate,
+        type,
+        reason,
+        items,
+        numDays: items.reduce((accum: number, field: EmployeeLeaveItem) => {
+          return accum + ((field.type === LeaveItemType.HALF_DAY) ? 0.5 : 1);
+        }, 0),
+      })
 
       await orm.em.flush();
 
@@ -157,11 +169,10 @@ export const LeavesService = {
 
     const leave = await orm.em.findOne(
       EmployeeLeave,
+      leaveId,
       {
-        id: leaveId,
-        employee: employeeId
-      },
-      { fields: ['id'] }
+        populate: ['items']
+      }
     );
 
     if (!leave) {

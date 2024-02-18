@@ -33,6 +33,16 @@ export const EmployeesController: any = {
     EmployeesService.getEmployee(req, res);
   },
 
+  getEmployeeSalaryReport: (req: Request, res: Response) => {
+    const validationRes = validationResult(req);
+
+    if (!validationRes.isEmpty()) {
+      return res.status(404).json({ message: 'Employee not found'});
+    }
+
+    EmployeesService.getEmployeeSalaryReport(req, res);
+  },
+
   createEmployee: (req: Request, res: Response) => {
     if (hasErrors(req, res)) {
       return;
